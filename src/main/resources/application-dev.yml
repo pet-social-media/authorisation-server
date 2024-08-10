@@ -20,5 +20,5 @@ logging:
 
 keys:
   rsa:
-    - private-key: classpath:dev-rsa
-      public-key: classpath:dev-rsa.pub
+    - private-key: classpath:dev-rsa.local
+      public-key: classpath:dev-rsa.pub.local
