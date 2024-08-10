@@ -1,0 +1,19 @@
+[versions]
+boot-version = '3.3.2'
+cloud-version = '2023.0.3'
+
+[libraries]  # Declare required project libraries
+spring-boot-web = { module = 'org.springframework.boot:spring-boot-starter-web' }
+spring-boot-oauth2-authorisation-server = { module = 'org.springframework.boot:spring-boot-starter-oauth2-authorization-server' }
+
+spring-cloud-bom = { module = 'org.springframework.cloud:spring-cloud-dependencies', version.ref = 'cloud-version' }
+spring-cloud-eureka-server = { module = 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-server' }
+spring-cloud-eureka-client = { module = 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client' }
+
+[plugins]  # Declare required gradle plugins with referenced version specification if it is required
+spring-boot-plugin = { id = 'org.springframework.boot', version.ref = 'boot-version' }
+spring-dependency-management-plugin = { id = 'io.spring.dependency-management', version = '1.1.6' }
+
+[bundles]  # Declare libraries bundles (aka another way for standartisation of the project dependencies)
+serviceregistry = [ 'spring-cloud-eureka-server' ]
+authorisationserver = [ 'spring-cloud-eureka-client', 'spring-boot-web', 'spring-boot-oauth2-authorisation-server' ]

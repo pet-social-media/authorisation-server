@@ -1,0 +1,24 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: authorisation-server
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://127.0.0.1:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+logging:
+  level:
+    org.springframework.cloud.netflix.eureka: 'OFF'
+    com.netflix.discovery: 'OFF'
+    org.springframework.security: 'TRACE'
+
+keys:
+  rsa:
+    - private-key: classpath:dev-rsa
+      public-key: classpath:dev-rsa.pub

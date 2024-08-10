@@ -1,0 +1,37 @@
+plugins {
+    id 'java'
+    alias(libs.plugins.spring.boot.plugin)
+    alias(libs.plugins.spring.dependency.management.plugin)
+}
+
+group = 'com.enzulode'
+version = '1.0.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation(platform(libs.spring.cloud.bom)) {
+        exclude group: 'com.fasterxml.woodstox', module: 'woodstox-core'
+        because('Excluded because of CVE-2022-40151 and CVE-2022-40152')
+
+        exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+        because('Excluded because of CVE-2020-13956')
+    }
+    implementation 'com.fasterxml.woodstox:woodstox-core:6.4.0'
+    implementation 'org.apache.httpcomponents:httpclient:4.5.13'
+
+
+    implementation libs.bundles.authorisationserver
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+}
