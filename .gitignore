@@ -9,3 +9,7 @@ build
 
 # Ignore Mac OS files
 .DS_Store
+
+# Ignore local or development resources
+src/main/resources/**/*.dev
+src/main/resources/**/*.local
