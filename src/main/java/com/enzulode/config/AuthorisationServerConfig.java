@@ -10,6 +10,10 @@ import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -17,7 +21,12 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.csrf.*;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
 import java.util.List;
 import java.util.Objects;
@@ -31,6 +40,10 @@ public class AuthorisationServerConfig {
 
     private final AuthorizationServerKeysProperties keysProperties;
 
+    private final String LOGIN_PAGE = "http://127.0.0.1:4200/login";
+    private final String LOGOUT_PROCESSING_URL = "/api/v1/logout";
+    private final String LOGIN_PROCESSING_URL = "/api/v1/login";
+
     public AuthorisationServerConfig(AuthorizationServerKeysProperties keysProperties) {
         this.keysProperties = keysProperties;
     }
@@ -43,11 +56,15 @@ public class AuthorisationServerConfig {
                 .oidc(Customizer.withDefaults());
 
         http
-                .oauth2ResourceServer( (resourceServer) -> resourceServer.jwt(Customizer.withDefaults()) )
                 .cors(Customizer.withDefaults())
-                .exceptionHandling(
-                        (exceptions) -> exceptions
-                                .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
+                .exceptionHandling( (exceptions) -> exceptions
+                                .defaultAuthenticationEntryPointFor(
+                                        new LoginUrlAuthenticationEntryPoint(LOGIN_PAGE),
+                                        new MediaTypeRequestMatcher(MediaType.APPLICATION_JSON)
+                                )
+                )
+                .oauth2ResourceServer( (resourceServer) -> resourceServer
+                        .jwt(Customizer.withDefaults())
                 );
         return http.build();
     }
@@ -55,13 +72,52 @@ public class AuthorisationServerConfig {
     @Bean
     @Order(2)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+        // CSRF configuration
+        CookieCsrfTokenRepository tokenRepo = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        tokenRepo.setCookiePath("/");
+
+        XorCsrfTokenRequestAttributeHandler delegate = new XorCsrfTokenRequestAttributeHandler();
+        delegate.setCsrfRequestAttributeName(null);
+
         http
                 .cors(Customizer.withDefaults())
-                .csrf(Customizer.withDefaults())
-                .authorizeHttpRequests( (requestAuth) -> requestAuth
-                        .anyRequest().authenticated()
+                .csrf( (csrf) -> csrf
+                        .csrfTokenRepository(tokenRepo)  // disabled for local development purposes
+                        .csrfTokenRequestHandler(delegate::handle)
                 )
-                .formLogin(Customizer.withDefaults());
+                .formLogin( (formLogin) -> formLogin
+                        .loginPage(LOGIN_PAGE)
+                        .loginProcessingUrl(LOGIN_PROCESSING_URL)
+                        .successHandler( (req, res, auth) -> {
+                            res.resetBuffer();
+                            res.setStatus(HttpStatus.OK.value());
+                            res.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+                            var savedReq = (new HttpSessionRequestCache()).getRequest(req, res);
+                            res.getWriter()
+                                    .append("{\"redirectUrl\": \"")
+                                    .append(savedReq == null ? "" : savedReq.getRedirectUrl())
+                                    .append("\"}");
+                            res.flushBuffer();
+                        })
+                        .failureHandler( (req, res, auth) -> res
+                                .setStatus(HttpStatus.UNAUTHORIZED.value())
+                        )
+                )
+                .logout( (logout) -> logout
+                        .logoutRequestMatcher(new AntPathRequestMatcher(LOGOUT_PROCESSING_URL, "GET"))
+                        .deleteCookies("JSESSIONID")
+                )
+                .exceptionHandling( (handler) -> handler
+                        .authenticationEntryPoint(
+                                new HttpStatusEntryPoint(HttpStatus.FORBIDDEN)
+                        )
+                )
+                .authorizeHttpRequests( (authorize) -> authorize
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/v1/csrf").permitAll()
+                        .requestMatchers("/api/v1/logout").permitAll()
+                        .anyRequest().authenticated()
+                );
 
         return http.build();
     }
